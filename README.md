@@ -1,2 +1,49 @@
-# -Un-designing-a-Thermal-Prediction-System
-thermal prediction system (PhD Project)
+# (Un)designing a Thermal Prediction System
+This repository contains the working code, data, 3d-print files, and documentation for a thermal prediction system consisting of four types of sensor devices and an interface. The purpose of this system was to make predictions for changes in the indoor temperature based on weather forecasts and patterns in the thermodynamics of a specific space. These predictions served to anticipate the thermal effects of various shading and ventilating actions. This project is part of a Research through Design study presented in Chapter 6 of the PhD thesis titled: "(Un)designing Learning Agents in Messy Domestic Contexts" by Emilia Viaene (Eindhoven University of Technology, 2026).
+
+# About the Study
+This repository accompanies a Research-through-Design  study that explored the role a thermal prediction system (based on thermodynamic sensor data and weather data) could play in supporting household shading and ventilating strategies for thermal comfort. 
+
+The study addressed two research questions:
+1. What aspects of household shading and ventilating strategies can or cannot be modeled and predicted by a thermal prediction system based on sensor and weather data?
+2. In what ways can suggestions for shading and ventilating actions based on thermal predictions inferred from sensor and weather data be misaligned with situated circumstances?
+
+Four households (H1–H4 in this repository, matching Table 6.1 in the thesis; H4 is the researcher's own household) had a custom sensor kit installed in their living space for several weeks in August–October 2024. The sensor kit logged indoor/outdoor temperature, incoming sunlight through the windows, and window/curtain/door states, supplemented with weather API data. This data was used to iteratively design and deploy a thermal prediction algorithm and an interface that visualized sensor data and, in a later version, simulated thermal effects and suggested shading/ventilating actions.
+
+# Sensor Kit
+The sensor kit was designed and developed specifically for the purpose of this study. The complete kit consisted of four sensor devices (described below), equipped with an ESP32-microcontroller. The sensor devices collected thermodynamic variables (temperatures and sunlight) and shading and ventilation states (windows, curtains, doors, and shading). Sensor data was supplemented with API data from local weather stations (outdoor temperature and solar radiation). Data was collected using [DataFoundry](https://data-foundry.net), a research data infrastructure for designers; weather data was collected via the APIs from [OpenWeatherMap](https://openweathermap.org/) and [Meteoserver](https://meteoserver.nl/).
+
+### Windows
+The window sensor devices combined an ultrasonic distance sensor to track when curtains were open or closed with an LDR sensor to register changes in incoming light through the window. These devices were installed on each window in the space and logged sensor states at a frequency of sixty seconds When windows stretched over an entire façade, window sensor devices were installed at opposite sides of the window. The purpose of these sensor devices was to capture data about when and how the room was shaded from the sun. Light sensor data was complemented with global solar radiance API data to account for local obstructions in front of the sensor that obstruct the sunlight from hitting a specific (area of a) window.
+
+### Doors
+The door sensor devices, equipped with reed sensors to detect when windows or doors were opened or closed. These sensors were installed on windows and outdoor and indoor doors that lead into the space. They logged the reed sensor state with a frequency of sixty seconds. These devices provided data about when the room was exposed to airflow from outside.
+
+### Indoor Temperature
+The indoor temperature device included a DHT22 temperature sensor (±0.5°C accuracy) and logged indoor temperature at a frequency of sixty seconds. A small SSD1306 OLED display showed the current indoor and outdoor temperature. While the DHT22 sensor is also capable of collecting humidity data, and while this data is also relevant for the air quality and sensed temperature on the skin, this data was not used in the current study. The indoor temperature data served to provide insight into temperature changes as a result from shading and ventilating actions (i.e., changes in window and door sensor states).  
+
+### Outdoor temperature
+The outdoor temperature devices were equipped with waterproof DS18B20 temperature sensors (±0.5°C accuracy). These sensors were placed outside the home of the participants in a shaded area and logged outdoor temperature with a frequency of sixty minutes. This outdoor temperature data served to provide insight into the effect on indoor temperatures in relation to window and door sensor states. This sensor data was complemented with API outdoor temperature data to account for peaks in the data due to e.g. direct sunlight on the sensor.
+
+### Weather data from external APIs
+Temperature measurements from nearby weather-stations were accessed from an API called OpenWeatherMap. Global solar radiance measurements were accessed from an API called Meteoserver. Both API data streams were logged at hourly intervals. For the purpose of generating thermal predictions, APIs from the same platforms were used to access forecast data about outdoor temperatures and global solar radiance.
+
+# Thermal Prediction Algorithm
+The objective for designing the thermal prediction algorithm was to generate thermal predictions for the next 24 hours and corresponding action lists for shading and ventilating. The resulting algorithm would use weather forecast data to predict fluctuations in indoor temperature under different configurations of window, door, curtain, and shading states. The development of this algorithm was explored using Python Notebooks. The final deployment was based on simulated predictions following the algorithmic logic of the final version of the experimental algorithm. 
+
+### Solar Radiance Model
+Because obstructions (e.g., overhangs, trees) are window-specific, the algorithm needed to align global solar radiation measurements with the locally measured light values for each window. This was to ensure that thermal predictions based on solar radiance forecasts were in line with future window-specific light values. The feature set used for this model includes solar radiance values and timestamps (day, time) as input variables and window-specific light sensor values as output variable
+
+### Thermal Prediction Model
+Next, the resulting window-specific light value predictions based on solar radiance forecasts in combination with outdoor temperature forecast data served to predict indoor temperature fluctuations based on simulated future window and door sensor states. The feature set used for this model includes outdoor temperature, predicted light values (output from previous model), and pre-set window and door sensor values as input variables and indoor temperatures as output variables. 
+
+### Action List Generation
+Finally, the algorithm needed to predict the maximum and minimum temperatures for the next 24 hours and a list of corresponding window and door sensor states.  To do so, the thermal prediction model would run through all possible sensor states for each of the next 24 hours to output the sensor states that correspond with either the max or the min setting.
+
+# Interface
+The interface used a TFT LCD touchscreen with an included ESP32 development board (ESP32-2432S028R, commonly referred to as Cheap Yellow Display or CYD). The display was programmed using Arduino, and the graphical user interface was designed using SquareLine Studio. Through the interface, household-specific data from the datasets on the DataFoundry database could be retrieved and manipulated. Two iterations of the interface were deployed consecutively. In the first version, participants could consult historical sensor- and weather data visualizations. The second version enabled participants to configure future window and sensor states and consult corresponding thermal predictions and shading and ventilating action lists.
+
+# Data Infrastructure
+The sensor devices were equipped with ESP32 microcontrollers with Wi-Fi capabilities that allowed them to send data from the sensors to a secure database on DataFoundry. Data from each sensor device and from the API’s was collected in five separate datasets on the DataFoundry platform. These datasets were accessed for data processing to produce new (dynamic) datasets to be accessed by the interface.
+All sensor devices except the indoor temperature device were powered by lithium-ion batteries. To notify users when the batteries were drained and required recharging (with the supplied portable power bank), a script running on the DataFoundry platform detected when sensor data logging had stopped and then sent notifications to participants through a Telegram bot. 
+Two Python scripts served to make the collected data and the output of the thermal prediction algorithm accessible from the interface. The first script merged hourly data from the separate datasets for each participant from the last three days and sent it to a dynamic dataset on DataFoundry. This dataset could be accessed by the interface to display the (household-specific) sensor and weather data history. The second script accessed weather forecast API data (temperature and solar radiance) and ran the thermal prediction algorithm to generate thermal predictions and action lists, to produce dynamic thermal prediction datasets per household. These dynamic datasets can be accessed by the interface to display the thermal predictions and action lists and manipulated by changing thermal prediction settings (i.e., determining future window/door sensor states). Note that this second script was run only once to deploy the simulated thermal predictions for H2.
